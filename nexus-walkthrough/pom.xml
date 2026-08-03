@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Example project centered on org.slf4j:slf4j-api — the ONE dependency that
+  lands on the classpath of every modern JVM backend, pulled from the Nexus
+  group (maven-public) exactly as observed in aug3.pcap.
+
+  Versions below are the actual ones cached in nexus.wmpay.me maven-central:
+    org/slf4j/slf4j-api        1.7.36, 2.0.9, 2.0.12 ... 2.0.18
+    ch/qos/logback/logback-classic  1.4.14, 1.5.12, 1.5.32, 1.5.34
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Spring Boot 3.2.0 — the version seen in the pcap dependency stream.
+       NOTE: even without declaring slf4j explicitly, Spring Boot pulls
+       slf4j-api in transitively via spring-boot-starter-logging.
+       We declare it explicitly to make it visible and version-controlled. -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.0</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.wmpay</groupId>
+  <artifactId>logging-demo</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>logging-demo</name>
+  <description>Demo of consuming slf4j-api from Nexus (maven-public group)</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <slf4j.version>2.0.9</slf4j.version>
+  </properties>
+
+  <!--
+    Where to RESOLVE from: the Nexus GROUP repository. Every download of
+    slf4j-api hits /repository/maven-public/org/slf4j/slf4j-api/<ver>/...
+    (the pcap shows exactly this pattern for every dependency).
+  -->
+  <repositories>
+    <repository>
+      <id>nexus-maven-public</id>
+      <name>Nexus Group (releases + central + snapshots)</name>
+      <url>https://nexus.wmpay.me/repository/maven-public/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+  </repositories>
+
+  <!-- Publish target when running `mvn deploy` (same Nexus, hosted repos) -->
+  <distributionManagement>
+    <repository>
+      <id>nexus-releases</id>
+      <name>Nexus Hosted Releases</name>
+      <url>https://nexus.wmpay.me/repository/maven-releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>nexus-snapshots</id>
+      <name>Nexus Hosted Snapshots</name>
+      <url>https://nexus.wmpay.me/repository/maven-snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
+
+  <dependencies>
+    <!-- ~~~~~~~~~~~~~~~~~ THE UNIVERSAL LIBRARY ~~~~~~~~~~~~~~~~~ -->
+    <!--
+      slf4j-api = the logging FACADE (interfaces only, zero implementation).
+      Every backend has this on the classpath:
+        - direct import (this file)
+        - transitively via spring-boot-starter-logging / netty / mybatis-plus /
+          hutool / feign — i.e. even if this dependency were removed, the
+          jar still arrives on the classpath.
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+
+    <!--
+      The IMPLEMENTATION bound to the facade at runtime.
+      logback-classic is SLF4J's native implementation; Spring Boot's
+      starter-logging default. Without ONE binding on the classpath SLF4J
+      logs "No SLF4J providers were found" and silently drops output.
+    -->
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.4.14</version>
+    </dependency>
+
+    <!--
+      Optional bridges — used when legacy code calls commons-logging / JUL /
+      log4j directly: they re-route those calls INTO slf4j-api.
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>jcl-over-slf4j</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>jul-to-slf4j</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+
+    <!-- Minimal Spring surface to prove the transitive chain in the demo -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

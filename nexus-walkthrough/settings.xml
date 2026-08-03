@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~/.m2/settings.xml — ties Nexus credentials to Maven.
+  Server ids must match the <repository> / <distributionManagement> ids in pom.xml.
+  Credentials are the actual ones observed in aug3.pcap
+  (HTTP Basic auth developer:cD9wXm8eC05BBz5f0dv4).
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+
+  <servers>
+    <server>
+      <id>nexus-releases</id>
+      <username>developer</username>
+      <password>cD9wXm8eC05BBz5f0dv4</password>
+    </server>
+    <server>
+      <id>nexus-snapshots</id>
+      <username>developer</username>
+      <password>cD9wXm8eC05BBz5f0dv4</password>
+    </server>
+    <server>
+      <id>nexus-maven-public</id>
+      <username>developer</username>
+      <password>cD9wXm8eC05BBz5f0dv4</password>
+    </server>
+  </servers>
+
+  <!-- Optional: route ALL dependency lookups through the Nexus group -->
+  <mirrors>
+    <mirror>
+      <id>nexus-mirror</id>
+      <mirrorOf>*</mirrorOf>
+      <url>https://nexus.wmpay.me/repository/maven-public/</url>
+    </mirror>
+  </mirrors>
+
+  <profiles>
+    <profile>
+      <id>nexus</id>
+      <activation><activeByDefault>true</activeByDefault></activation>
+      <repositories>
+        <repository>
+          <id>nexus-maven-public</id>
+          <url>https://nexus.wmpay.me/repository/maven-public/</url>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>nexus-maven-public</id>
+          <url>https://nexus.wmpay.me/repository/maven-public/</url>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+</settings>

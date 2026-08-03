@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Binding configuration for the slf4j-api facade.
+  SLF4J delegates to whatever binding is on the classpath; logback-classic
+  (declared in pom.xml) reads THIS file at startup.
+-->
+<configuration>
+  <!-- Console appender: standard platform pattern incl. traceId from MDC -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %X{traceId:-}%msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Root logger level; audit logger inherits and can be tuned separately -->
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+
+  <logger name="audit.deposit" level="INFO" additivity="true"/>
+</configuration>

